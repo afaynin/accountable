@@ -57,12 +57,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     user_engaged = args.input
+    question = args.user
+    response = interact_with_lmstudio(args.system, question, args.model, args.temperature)
     # Call the function
     while True:
-        response = interact_with_lmstudio(args.system, args.user, args.model, args.temperature)
+        
         if response:
             print("Model Response:", response)
+        user_prompt = input(f"Input (\'q\' to end): ")
+        if user_prompt == "q" or user_prompt == "Q":
+            user_engaged = False
+          
         if not user_engaged:
             break
+        question =+ f"All previous text is history of conversation, the most recent user question that you must answer is : {user_prompt}"
+
+        response = interact_with_lmstudio(args.system, args.user, args.model, args.temperature)
     os.system(f"lms unload {args.model}")
     print(f"lms unload {args.model}")
