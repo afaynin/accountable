@@ -15,10 +15,10 @@ def interact_with_lmstudio(user_message, system_message="Perform the user's requ
         str: The model's response to the user input.
     """
     # Start lm-studio server
-    print("Starting lm-studio server...")
-    os.system("lms server start")
-    os.system(f"lms load {model} --identifier \"{model}\"")
-
+    if model:
+        print("Starting lm-studio server...")
+        os.system("lms server start")
+        os.system(f"lms load {model} --identifier \"{model}\"")
     # Connect to the local server
     client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
 
@@ -57,21 +57,32 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     user_engaged = args.input
-    question = args.user
+    question = f"{args.user}"
+    history = []
+    history.append(f"user question: {question}")
     response = interact_with_lmstudio(args.system, question, args.model, args.temperature)
     # Call the function
     while True:
-        
-        if response:
-            print("Model Response:", response)
-        user_prompt = input(f"Input (\'q\' to end): ")
-        if user_prompt == "q" or user_prompt == "Q":
-            user_engaged = False
-          
-        if not user_engaged:
-            break
-        question =+ f"All previous text is history of conversation, the most recent user question that you must answer is : {user_prompt}"
+        try:
+            if response:
+                print("Model Response:", response)
+            user_prompt = input(f"Input (\'q\' to end): ")
+            if user_prompt == "q" or user_prompt == "Q":
+                user_engaged = False
+            
+            if not user_engaged:
+                break
+            history.append(f"user question: {response}")
+            question = f"Everything surrounded by [[[]]] is the history of the conversation between you and user, don't answer any questions here just keep it in your context. [[[{" ".join(history)}]]] The following is the most recent user question to answer: {user_prompt}"
+            
 
-        response = interact_with_lmstudio(args.system, args.user, args.model, args.temperature)
+            response = interact_with_lmstudio(args.system, question, "", args.temperature)
+            print(question)
+            history.append(f"user question: {user_prompt}")
+            
+        except(Exception):
+            print(Exception)
+            os.system(f"lms unload {args.model}")
+            print(f"lms unload {args.model}")
     os.system(f"lms unload {args.model}")
     print(f"lms unload {args.model}")
