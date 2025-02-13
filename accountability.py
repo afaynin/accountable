@@ -1,5 +1,8 @@
 import os
 from openai import OpenAI
+from datatime import datetime
+import json
+import argparse
 
 def interact_with_lmstudio(user_message, system_message="Perform the user's request", model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf", temperature=0.7):
     """
@@ -33,7 +36,7 @@ def interact_with_lmstudio(user_message, system_message="Perform the user's requ
             temperature=temperature,
         )
         response = completion.choices[0].message.content
-        print(response)
+        # print(response)
 
         # Unload the model after use
         
@@ -43,9 +46,69 @@ def interact_with_lmstudio(user_message, system_message="Perform the user's requ
         os.system(f"lms unload {model}")
         return None
 
+def tool_use(user_responses, 
+             system_message="""From the user response, use the following functions""", 
+             model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"):
+    client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+    tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_json",
+            "description": "Get the delivery date for a customer's order. Call this whenever you need to know the delivery date, for example when a customer asks 'Where is my package'",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "string",
+                        "description": "The customer's order ID.",
+                    },
+                },
+                "required": ["order_id"],
+                "additionalProperties": False,
+            },
+        },
+    }
+    ]
+
+
+def access_datetime():
+    return datetime.now()
+
+def create_json(date: str, task: str, effect: int, time_spent = -1):
+    
+    task = {
+        "date": date,
+        "task": task,
+        "time_spent": time_spent,
+        "effect": effect,
+    }
+    filename = f"~/Desktop/Accountabiltiy/time_spent/{date}.json"
+    if os.path.exists(filename):
+        with open(filename, "r+", encoding="utf-8") as file:
+            try:
+                data = json.load(file)  
+            except json.JSONDecodeError:
+                data = []  
+        
+           
+            if not isinstance(data, list):
+                data = [data]
+
+            
+            data.append(task)
+
+            # Move cursor to the beginning and overwrite
+            file.seek(0)
+            json.dump(data, file, indent=4)
+            file.truncate()  # Remove extra content if needed
+    else:
+        with open(filename, "w", encoding="utf-8") as file:
+            json.dump([task], file, indent=4)
+
 
 if __name__ == "__main__":
-    import argparse
+    
 
     # Parse arguments
     parser = argparse.ArgumentParser(description="Provide any question to any model available")
@@ -54,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument('--temperature', type=float, default=0.7, help="Unpredictability of model")
     parser.add_argument('--model', type=str, default="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf", help="Model to use")
     parser.add_argument('--input', type=bool, default=False, help="Request input from user after completion")
+    parser.add_argument('--tool', type=bool, default=False, help="Track use of your time in json format")
     args = parser.parse_args()
 
     user_engaged = args.input
@@ -72,12 +136,14 @@ if __name__ == "__main__":
             
             if not user_engaged:
                 break
+            if args.tool:
+                tool_use(user_prompt, model=args.model)
             history.append(f"user question: {response}")
             question = f"Everything surrounded by [[[]]] is the history of the conversation between you and user, don't answer any questions here just keep it in your context. [[[{" ".join(history)}]]] The following is the most recent user question to answer: {user_prompt}"
             
 
             response = interact_with_lmstudio(args.system, question, "", args.temperature)
-            print(question)
+            # print(question)
             history.append(f"user question: {user_prompt}")
             
         except(Exception):
